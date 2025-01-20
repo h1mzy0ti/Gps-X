@@ -1,0 +1,23 @@
+General:
+    SIM800 GSM Module (for SMS and GPRS communication).
+    NEO-6MV2 GPS Module (for GPS functionality).
+    ESP-12F ESP8266 (as the microcontroller for managing GPS and GSM data).
+    3.7V 1800mAh Lithium-Ion Battery (or larger capacity for extended runtime).
+
+Voltage Regulator:
+    AMS1117 3.3V (to step down the 3.7V to 3.3V for the ESP8266 and GPS module).
+    LM2596 Buck Converter (optional, for more efficient voltage regulation).
+
+Capacitors:
+    100µF electrolytic capacitor (for stabilizing the power supply to SIM800).
+    0.1µF ceramic capacitor (to filter noise on power lines).
+
+Resistors:
+    10kΩ pull-up resistor for the TX/RX lines, if required for stable UART communication.
+    Voltage divider resistors (e.g., 10kΩ and 20kΩ) for level shifting between 5V and 3.3V.
+
+Diodes:
+    Schottky diode (e.g., 1N5819) to prevent reverse current.
+
+MOSFET:
+    IRLZ44N (Logic-Level MOSFET):

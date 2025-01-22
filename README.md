@@ -51,9 +51,6 @@ Includes overcharging protection when connected to vehicle power.
 
 Allows users to view the vehicle’s route history for specific dates via the mobile app.
 
-9. Over-the-Air (OTA) Updates
-
-Enables remote firmware updates for the ESP8266 module, ensuring the tracker stays up-to-date.
 
 # Software Features
 

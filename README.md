@@ -41,13 +41,13 @@ Monitors and logs vehicle start/stop events.
 
 Displays ignition status on the mobile app.
 
-7. Battery Health Monitoring
+7.Battery Health Monitoring
 
 Tracks and displays the tracker’s battery voltage level in the mobile app.
 
 Includes overcharging protection when connected to vehicle power.
 
-8. Historical Route Playback
+8.Historical Route Playback
 
 Allows users to view the vehicle’s route history for specific dates via the mobile app.
 

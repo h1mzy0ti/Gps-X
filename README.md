@@ -3,13 +3,13 @@ GPS tracker based on ESP12F which uses SIM800 GSM Module and NEO-6MV2 GPS Module
 This GPS tracker project is designed to provide comprehensive vehicle tracking and monitoring solutions. It leverages GPS and GSM modules integrated with an ESP-12F ESP8266 microcontroller, enabling real-time updates, data logging, and multiple alert mechanisms. The tracker is suitable for cars, ensuring power efficiency and enhanced security features.
 
 # Main feature 
-1. Real-Time Coordinates to Server
+1.Real-Time Coordinates to Server
 
 Sends real-time GPS coordinates to a self-hosted server.
 
 Displays the vehicle's current location on a mobile app.
 
-2. Engine and Mode Indication
+2.Engine and Mode Indication
 
 Engine On Indication: Shows when the vehicle's power (engine) is on.
 
@@ -19,23 +19,23 @@ Active Mode: Vehicle power is on, and the tracker operates in full functionality
 
 Light Sleep Mode: Tracker operates on battery power with reduced activity to save energy.
 
-3. GPS Coordinate Logs
+3.GPS Coordinate Logs
 
 Logs GPS coordinates for both Active and Light Sleep modes.
 
 Retains data for 7 days and auto-deletes older logs.
 
-4. SMS Alerts for Location Departure
+4.SMS Alerts for Location Departure
 
 Sends SMS notifications if the vehicle exits predefined locations such as Home or Office.
 
-5. Anti-Theft Mode
+5.Anti-Theft Mode
 
 Activates via the mobile app to monitor unauthorized movement of the vehicle.
 
 Sends alerts if the vehicle moves without authorization.
 
-6. Ignition Status Tracking
+6.Ignition Status Tracking
 
 Monitors and logs vehicle start/stop events.
 

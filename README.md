@@ -1,6 +1,7 @@
 # Gps-X
-![Logo](image/logo.png)
-
+<p align="center">
+  <img src="image/logo.png" width="200"/>
+</p>
 GPS tracker based on ESP12F which uses SIM800 GSM Module and NEO-6MV2 GPS Module for GPS functionality.
 
 This GPS tracker project is designed to provide comprehensive vehicle tracking and monitoring solutions. It leverages GPS and GSM modules integrated with an ESP-12F ESP8266 microcontroller, enabling real-time updates, data logging, and multiple alert mechanisms. The tracker is suitable for cars, ensuring power efficiency and enhanced security features.

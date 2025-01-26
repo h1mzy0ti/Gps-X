@@ -1,0 +1,13 @@
+Example Usage:
+
+Start the server:
+./start_server.sh start
+
+Stop the server:
+./start_server.sh stop
+
+Restart the server:
+./start_server.sh restart
+
+Check if the server is running:
+./start_server.sh status

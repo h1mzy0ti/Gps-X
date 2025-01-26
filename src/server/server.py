@@ -174,7 +174,7 @@ def get_anti_theft():
     user_data = users_collection.find_one({'email': user_email}, {'_id': 0, 'anti_theft': 1})
     if not user_data or 'anti_theft' not in user_data:
         return jsonify({'anti_theft': False}), 200
-
+    
     return jsonify({'anti_theft': user_data['anti_theft']}), 200
 
 

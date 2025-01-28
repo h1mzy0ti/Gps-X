@@ -76,4 +76,4 @@ Below is a screenshot showing the interface of the app:
 
 ### Contribution
 
-Feel free to fork this repository, create issues, or submit pull requests to contribute to this project.
+Feel free to fork this repository, create issues, or submit pull requests to contribute to this project. 😊

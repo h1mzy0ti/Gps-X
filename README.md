@@ -38,15 +38,11 @@ Below is a screenshot showing the interface of the app:
    - Activates via the mobile app to monitor unauthorized movement of the vehicle.
    - Sends alerts if the vehicle moves without authorization.
 
-6. **Ignition Status Tracking**
-   - Monitors and logs vehicle start/stop events.
-   - Displays ignition status on the mobile app.
-
-7. **Battery Health Monitoring**
+6. **Battery Health Monitoring**
    - Tracks and displays the tracker’s battery voltage level in the mobile app.
    - Includes overcharging protection when connected to vehicle power.
 
-8. **Historical Route Playback**
+7. **Historical Route Playback**
    - Allows users to view the vehicle’s route history for specific dates via the mobile app.
 
 ---
@@ -80,4 +76,4 @@ Below is a screenshot showing the interface of the app:
 
 ### Contribution
 
-Feel free to fork this repository, create issues, or submit pull requests to contribute to this project.
+Feel free to fork this repository, create issues, or submit pull requests to contribute to this project. 😊

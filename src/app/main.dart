@@ -485,7 +485,7 @@ class _GPSHomePageState extends State<GPSHomePage> {
                 child: FlutterMap(
                   options: MapOptions(
                     center: _currentPosition,
-                    zoom: 14.0,
+                    zoom: 18.0,
                     minZoom: 5.0,
                     maxZoom: 18.0,
                     interactiveFlags: InteractiveFlag.pinchZoom | InteractiveFlag.drag,
@@ -495,6 +495,16 @@ class _GPSHomePageState extends State<GPSHomePage> {
                       urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
                       subdomains: ['a', 'b', 'c'],
                       userAgentPackageName: 'com.example.app',
+                    ),
+                    MarkerLayer(
+                      markers: [
+                        Marker(
+                          width: 35.0,
+                          height: 35.0,
+                          point: _currentPosition, // Updated position
+                          builder: (ctx) => Image.asset('assets/pin.png'), // Car Icon
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -566,8 +576,8 @@ class FullMapView extends StatelessWidget {
             MarkerLayer(
               markers: [
                 Marker(
-                  width: 50.0,
-                  height: 50.0,
+                  width: 35.0,
+                  height: 35.0,
                   point: _currentPosition, // Updated position
                   builder: (ctx) => Image.asset('assets/pin.png'), // Car Icon
                 ),
@@ -626,6 +636,7 @@ class _SettingsPageState extends State<SettingsPage> {
       setState(() => _isLoading = false);
     }
   }
+
 
   Future<void> _saveChanges() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();

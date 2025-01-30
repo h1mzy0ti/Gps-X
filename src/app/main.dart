@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -5,6 +6,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:image_picker/image_picker.dart';
 
 void main() => runApp(MyApp());
 
@@ -279,6 +281,7 @@ class _GPSHomePageState extends State<GPSHomePage> {
   double batteryLevel = 0; // Default to 0
   String engineStatus = "Fetching..."; // Default to fetching
   LatLng _currentPosition = LatLng(37.4219999, -122.0840575); // Default position
+  XFile? _imageFile;
 
   late Timer _timer;
 
@@ -286,10 +289,21 @@ class _GPSHomePageState extends State<GPSHomePage> {
   void initState() {
     super.initState();
     _loadVehicleNumber(); // Fetch vehicle number on startup
+    _loadCarImage();
     fetchAntiTheftStatus();
     _timer = Timer.periodic(Duration(seconds: 5), (timer) {
       fetchDataFromServer();
+
     });
+  }
+  Future<void> _loadCarImage() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? carImagePath = prefs.getString('car_image');
+    if (carImagePath != null) {
+      setState(() {
+        _imageFile = XFile(carImagePath);
+      });
+    }
   }
 
   Future<void> _loadVehicleNumber() async {
@@ -444,7 +458,13 @@ class _GPSHomePageState extends State<GPSHomePage> {
           Column(
             children: [
               const Text("Made with ❤️ by Himjyoti", style: TextStyle(fontSize: 16)),
-              Image.asset('assets/car.png', height: 150),
+              _imageFile != null
+                  ? Image.file(
+                File(_imageFile!.path),
+                height: 150,
+                width: 150,
+              )
+                  : Image.asset('assets/car.png', height: 150),  // Fallback if _imageFile is null
               Text(vehicleNumber, style: const TextStyle(fontSize: 17)),
             ],
           ),
@@ -605,12 +625,27 @@ class _SettingsPageState extends State<SettingsPage> {
   final TextEditingController _vehicleIdController = TextEditingController();
   final TextEditingController _vehicleNumberController = TextEditingController();
   bool _isLoading = false;
+  XFile? _imageFile; // Store the selected image
 
   @override
   void initState() {
     super.initState();
     _fetchVehicleNumber();
     _vehicleIdController.text = widget.vehicleID;
+  }
+  Future<void> _pickImage() async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+
+    if (pickedFile != null) {
+      setState(() {
+        _imageFile = pickedFile;
+      });
+
+      // Save the selected image path in SharedPreferences
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      await prefs.setString('car_image', pickedFile.path);
+    }
   }
 
   Future<void> _fetchVehicleNumber() async {
@@ -685,6 +720,16 @@ class _SettingsPageState extends State<SettingsPage> {
         padding: EdgeInsets.all(16),
         child: Column(
           children: [
+            GestureDetector(
+              onTap: _pickImage, // Call the image picker when the image is tapped
+              child: CircleAvatar(
+                radius: 50,
+                backgroundColor: Colors.grey[300],
+                backgroundImage: _imageFile != null
+                    ? FileImage(File(_imageFile!.path)) // Display the selected image
+                    : AssetImage('assets/car.png') as ImageProvider, // Default image
+              ),
+            ),
             TextField(
               controller: _emailController,
               decoration: InputDecoration(labelText: "Email"),

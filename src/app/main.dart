@@ -416,6 +416,72 @@ class _GPSHomePageState extends State<GPSHomePage> {
       print("Error updating Anti-Theft mode: $e");
     }
   }
+  void _addLocation() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        String locationName = '';
+        double latitude = 0.0;
+        double longitude = 0.0;
+
+        return AlertDialog(
+          title: Text('Add Location'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                decoration: InputDecoration(labelText: 'Location Name'),
+                onChanged: (value) {
+                  locationName = value;
+                },
+              ),
+              TextField(
+                decoration: InputDecoration(labelText: 'Latitude'),
+                keyboardType: TextInputType.number,
+                onChanged: (value) {
+                  latitude = double.tryParse(value) ?? 0.0;
+                },
+              ),
+              TextField(
+                decoration: InputDecoration(labelText: 'Longitude'),
+                keyboardType: TextInputType.number,
+                onChanged: (value) {
+                  longitude = double.tryParse(value) ?? 0.0;
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                _sendLocationToServer(locationName, latitude, longitude);
+                Navigator.of(context).pop();
+              },
+              child: Text('Add'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _sendLocationToServer(String name, double lat, double lng) async {
+    final response = await http.post(
+      Uri.parse('http://10.0.2.2:5000/add_location'),
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({
+        'name': name,
+        'latitude': lat,
+        'longitude': lng,
+      }),
+    );
+
+    if (response.statusCode == 201) {
+      print('Location added successfully');
+    } else {
+      print('Failed to add location');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -448,13 +514,49 @@ class _GPSHomePageState extends State<GPSHomePage> {
           ],
         ),
       ),
+
       body: Column(
         children: [
           Column(
             children: [
               const Text("Made with ❤️ by Himjyoti", style: TextStyle(fontSize: 16)),
               Image.asset('assets/car.png', height: 150),
-              Text(vehicleNumber, style: const TextStyle(fontSize: 17)),
+              Stack(
+                alignment: Alignment.center,
+                children: [
+                  Container(
+                    width: 250, // Set desired width
+                    height: 50, // Set desired height
+                    child: Image.asset(
+                      'assets/registration-plate.png',
+                    ),
+                  ),
+                  Positioned(
+                    left: 108,
+                    top: 4, // Adjust this value to position the top text
+                    child: Text(
+                      vehicleNumber.length > 5 ? vehicleNumber.substring(0, 5) : vehicleNumber,
+                      style: TextStyle(
+                        fontSize: 17, // Adjust font size as needed
+                        color: Colors.black, // Change color as needed
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    top: 23,
+                    left: 115,
+                    child: Text(
+                      vehicleNumber.length > 5 ? vehicleNumber.substring(5) : '',
+                      style: TextStyle(
+                        fontSize: 17, // Adjust font size as needed
+                        color: Colors.black, // Change color as needed
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
           Row(
@@ -469,13 +571,18 @@ class _GPSHomePageState extends State<GPSHomePage> {
               ),
               Column(
                 children: [
-                  const Text("Anti-Theft Mode"),
-                  Switch(
-                    value: antiTheftMode,
-                    onChanged: (value) {
-                      updateAntiTheftMode(value); // Update Anti-Theft mode on the server
-                    },
+
+                  Transform.scale(
+                    scale: 0.8, // Adjust the scale factor as needed
+                    child: Switch(
+                      value: antiTheftMode,
+                      onChanged: (value) {
+                        updateAntiTheftMode(value); // Update Anti-Theft mode on the server
+
+                      },
+                    ),
                   ),
+                  const Text("Anti-Theft Mode"),
                 ],
               ),
               Column(
@@ -524,6 +631,7 @@ class _GPSHomePageState extends State<GPSHomePage> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
+                SizedBox(width: 4),
                 ElevatedButton(
                   onPressed: () {
                     Navigator.push(
@@ -531,8 +639,14 @@ class _GPSHomePageState extends State<GPSHomePage> {
                       MaterialPageRoute(builder: (context) => FullMapView()),
                     );
                   },
-                  child: const Text("View Map 📍"),
+                  child: const Text("View Map📍"),
                 ),
+                SizedBox(width: 4), // Add space between buttons
+                ElevatedButton(
+                  onPressed: _addLocation,
+                  child: Text("Add Geo-Fence"),
+                ),
+                SizedBox(width: 4), // Add space between buttons
                 ElevatedButton(
                   onPressed: () {
                     Navigator.push(
@@ -550,6 +664,84 @@ class _GPSHomePageState extends State<GPSHomePage> {
     );
   }
 }
+class RoutesLogPage extends StatefulWidget {
+  final String deviceID;
+
+  const RoutesLogPage({Key? key, required this.deviceID}) : super(key: key);
+
+  @override
+  _RoutesLogPageState createState() => _RoutesLogPageState();
+}
+
+class _RoutesLogPageState extends State<RoutesLogPage> {
+  List<dynamic> logs = [];
+
+  @override
+  void initState() {
+    super.initState();
+    fetchLogs();
+  }
+
+  Future<void> fetchLogs() async {
+    final response = await http.get(Uri.parse('http://10.0.2.2:5000/logs'));
+
+    if (response.statusCode == 200) {
+      setState(() {
+        logs = json.decode(response.body)['logs'];
+      });
+    } else {
+      // Handle error
+    }
+  }
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text("Route Logs"),
+        centerTitle: true,
+        backgroundColor: Colors.purple[200],
+      ),
+      body: logs.isEmpty
+          ? Center(
+        child: Text(
+          "No logs available",
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+        ),
+      )
+          : SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: DataTable(
+            headingRowColor: MaterialStateColor.resolveWith((states) => Colors.black!),
+            columns: [
+              DataColumn(label: Text("Location", style: TextStyle(fontWeight: FontWeight.bold))),
+              DataColumn(label: Text("Engine Status", style: TextStyle(fontWeight: FontWeight.bold))),
+              DataColumn(label: Text("AT Mode", style: TextStyle(fontWeight: FontWeight.bold))),
+              DataColumn(label: Text("Actions", style: TextStyle(fontWeight: FontWeight.bold))),
+            ],
+            rows: logs.map((log) {
+              return DataRow(cells: [
+                DataCell(Text("${log['latitude']}, ${log['longitude']}", style: TextStyle(color: Colors.black87))),
+                DataCell(Text(log['engine_status'], style: TextStyle(color: log['engine_status'] == 'On' ? Colors.green : Colors.red))),
+                DataCell(Text(log['anti_theft'] ? "On" : "Off", style: TextStyle(color: log['anti_theft'] ? Colors.green : Colors.red))),
+                DataCell(
+                  IconButton(
+                    icon: Icon(Icons.remove_red_eye, color: Colors.blueAccent),
+                    onPressed: () {
+                      // Implement view location functionality
+                    },
+                  ),
+                ),
+              ]);
+            }).toList(),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 
 
 
@@ -561,6 +753,7 @@ class FullMapView extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Full Map View"),
+        backgroundColor: Colors.purple[200],
         leading: IconButton(
           icon: const Icon(Icons.close),
           onPressed: () => Navigator.pop(context),
@@ -834,19 +1027,3 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 }
 
-class RoutesLogPage extends StatelessWidget {
-  final String deviceID;
-
-  const RoutesLogPage({required this.deviceID});
-
-  @override
-  Widget build(BuildContext context) {
-    // Fetch routes dynamically from server
-    return Scaffold(
-      appBar: AppBar(title: const Text("Routes Log")),
-      body: const Center(
-        child: Text("Previous Routes will be displayed here"),
-      ),
-    );
-  }
-}

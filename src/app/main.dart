@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -6,7 +5,6 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:image_picker/image_picker.dart';
 
 void main() => runApp(MyApp());
 
@@ -277,11 +275,10 @@ class GPSHomePage extends StatefulWidget {
 class _GPSHomePageState extends State<GPSHomePage> {
   bool antiTheftMode = false;
   String vehicleNumber = "Loading..."; // Initial state
-  String vehicleID = "1234";
+  String deviceID = "Loading...";
   double batteryLevel = 0; // Default to 0
   String engineStatus = "Fetching..."; // Default to fetching
   LatLng _currentPosition = LatLng(37.4219999, -122.0840575); // Default position
-  XFile? _imageFile;
 
   late Timer _timer;
 
@@ -289,22 +286,19 @@ class _GPSHomePageState extends State<GPSHomePage> {
   void initState() {
     super.initState();
     _loadVehicleNumber(); // Fetch vehicle number on startup
-    _loadCarImage();
+    _loadDeviceID();
     fetchAntiTheftStatus();
     _timer = Timer.periodic(Duration(seconds: 5), (timer) {
       fetchDataFromServer();
-
     });
   }
-  Future<void> _loadCarImage() async {
+  Future<void> _loadDeviceID() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
-    String? carImagePath = prefs.getString('car_image');
-    if (carImagePath != null) {
-      setState(() {
-        _imageFile = XFile(carImagePath);
-      });
-    }
+    setState(() {
+      deviceID = prefs.getString('device_id') ?? "Unknown Device";
+    });
   }
+
 
   Future<void> _loadVehicleNumber() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
@@ -360,6 +354,7 @@ class _GPSHomePageState extends State<GPSHomePage> {
           double lat = data['latitude'] ?? _currentPosition.latitude;
           double lng = data['longitude'] ?? _currentPosition.longitude;
           _currentPosition = LatLng(lat, lng);
+          deviceID = data['device_id'] ?? deviceID;
 
           // Update vehicleNumber if it exists
           if (data.containsKey('vehicle_number')) {
@@ -421,6 +416,72 @@ class _GPSHomePageState extends State<GPSHomePage> {
       print("Error updating Anti-Theft mode: $e");
     }
   }
+  void _addLocation() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        String locationName = '';
+        double latitude = 0.0;
+        double longitude = 0.0;
+
+        return AlertDialog(
+          title: Text('Add Location'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                decoration: InputDecoration(labelText: 'Location Name'),
+                onChanged: (value) {
+                  locationName = value;
+                },
+              ),
+              TextField(
+                decoration: InputDecoration(labelText: 'Latitude'),
+                keyboardType: TextInputType.number,
+                onChanged: (value) {
+                  latitude = double.tryParse(value) ?? 0.0;
+                },
+              ),
+              TextField(
+                decoration: InputDecoration(labelText: 'Longitude'),
+                keyboardType: TextInputType.number,
+                onChanged: (value) {
+                  longitude = double.tryParse(value) ?? 0.0;
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                _sendLocationToServer(locationName, latitude, longitude);
+                Navigator.of(context).pop();
+              },
+              child: Text('Add'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _sendLocationToServer(String name, double lat, double lng) async {
+    final response = await http.post(
+      Uri.parse('http://10.0.2.2:5000/add_location'),
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({
+        'name': name,
+        'latitude': lat,
+        'longitude': lng,
+      }),
+    );
+
+    if (response.statusCode == 201) {
+      print('Location added successfully');
+    } else {
+      print('Failed to add location');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -433,11 +494,11 @@ class _GPSHomePageState extends State<GPSHomePage> {
               onPressed: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => SettingsPage(vehicleID: vehicleID)),
+                  MaterialPageRoute(builder: (context) => SettingsPage()),
                 ).then((value) {
                   if (value != null && value is String) {
                     setState(() {
-                      vehicleNumber = value; // Update vehicle number instantly
+                      deviceID = value; // Update device ID instantly
                     });
                   }
                 });
@@ -453,19 +514,49 @@ class _GPSHomePageState extends State<GPSHomePage> {
           ],
         ),
       ),
+
       body: Column(
         children: [
           Column(
             children: [
               const Text("Made with ❤️ by Himjyoti", style: TextStyle(fontSize: 16)),
-              _imageFile != null
-                  ? Image.file(
-                File(_imageFile!.path),
-                height: 150,
-                width: 150,
-              )
-                  : Image.asset('assets/car.png', height: 150),  // Fallback if _imageFile is null
-              Text(vehicleNumber, style: const TextStyle(fontSize: 17)),
+              Image.asset('assets/car.png', height: 150),
+              Stack(
+                alignment: Alignment.center,
+                children: [
+                  Container(
+                    width: 250, // Set desired width
+                    height: 50, // Set desired height
+                    child: Image.asset(
+                      'assets/registration-plate.png',
+                    ),
+                  ),
+                  Positioned(
+                    left: 108,
+                    top: 4, // Adjust this value to position the top text
+                    child: Text(
+                      vehicleNumber.length > 5 ? vehicleNumber.substring(0, 5) : vehicleNumber,
+                      style: TextStyle(
+                        fontSize: 17, // Adjust font size as needed
+                        color: Colors.black, // Change color as needed
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    top: 23,
+                    left: 115,
+                    child: Text(
+                      vehicleNumber.length > 5 ? vehicleNumber.substring(5) : '',
+                      style: TextStyle(
+                        fontSize: 17, // Adjust font size as needed
+                        color: Colors.black, // Change color as needed
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
           Row(
@@ -480,13 +571,18 @@ class _GPSHomePageState extends State<GPSHomePage> {
               ),
               Column(
                 children: [
-                  const Text("Anti-Theft Mode"),
-                  Switch(
-                    value: antiTheftMode,
-                    onChanged: (value) {
-                      updateAntiTheftMode(value); // Update Anti-Theft mode on the server
-                    },
+
+                  Transform.scale(
+                    scale: 0.8, // Adjust the scale factor as needed
+                    child: Switch(
+                      value: antiTheftMode,
+                      onChanged: (value) {
+                        updateAntiTheftMode(value); // Update Anti-Theft mode on the server
+
+                      },
+                    ),
                   ),
+                  const Text("Anti-Theft Mode"),
                 ],
               ),
               Column(
@@ -535,6 +631,7 @@ class _GPSHomePageState extends State<GPSHomePage> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
+                SizedBox(width: 4),
                 ElevatedButton(
                   onPressed: () {
                     Navigator.push(
@@ -542,13 +639,19 @@ class _GPSHomePageState extends State<GPSHomePage> {
                       MaterialPageRoute(builder: (context) => FullMapView()),
                     );
                   },
-                  child: const Text("View Map 📍"),
+                  child: const Text("View Map📍"),
                 ),
+                SizedBox(width: 4), // Add space between buttons
+                ElevatedButton(
+                  onPressed: _addLocation,
+                  child: Text("Add Geo-Fence"),
+                ),
+                SizedBox(width: 4), // Add space between buttons
                 ElevatedButton(
                   onPressed: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => RoutesLogPage(vehicleID: vehicleID)),
+                      MaterialPageRoute(builder: (context) => RoutesLogPage(deviceID: deviceID)),
                     );
                   },
                   child: const Text("Routes Log"),
@@ -561,6 +664,84 @@ class _GPSHomePageState extends State<GPSHomePage> {
     );
   }
 }
+class RoutesLogPage extends StatefulWidget {
+  final String deviceID;
+
+  const RoutesLogPage({Key? key, required this.deviceID}) : super(key: key);
+
+  @override
+  _RoutesLogPageState createState() => _RoutesLogPageState();
+}
+
+class _RoutesLogPageState extends State<RoutesLogPage> {
+  List<dynamic> logs = [];
+
+  @override
+  void initState() {
+    super.initState();
+    fetchLogs();
+  }
+
+  Future<void> fetchLogs() async {
+    final response = await http.get(Uri.parse('http://10.0.2.2:5000/logs'));
+
+    if (response.statusCode == 200) {
+      setState(() {
+        logs = json.decode(response.body)['logs'];
+      });
+    } else {
+      // Handle error
+    }
+  }
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text("Route Logs"),
+        centerTitle: true,
+        backgroundColor: Colors.purple[200],
+      ),
+      body: logs.isEmpty
+          ? Center(
+        child: Text(
+          "No logs available",
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+        ),
+      )
+          : SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: DataTable(
+            headingRowColor: MaterialStateColor.resolveWith((states) => Colors.black!),
+            columns: [
+              DataColumn(label: Text("Location", style: TextStyle(fontWeight: FontWeight.bold))),
+              DataColumn(label: Text("Engine Status", style: TextStyle(fontWeight: FontWeight.bold))),
+              DataColumn(label: Text("AT Mode", style: TextStyle(fontWeight: FontWeight.bold))),
+              DataColumn(label: Text("Actions", style: TextStyle(fontWeight: FontWeight.bold))),
+            ],
+            rows: logs.map((log) {
+              return DataRow(cells: [
+                DataCell(Text("${log['latitude']}, ${log['longitude']}", style: TextStyle(color: Colors.black87))),
+                DataCell(Text(log['engine_status'], style: TextStyle(color: log['engine_status'] == 'On' ? Colors.green : Colors.red))),
+                DataCell(Text(log['anti_theft'] ? "On" : "Off", style: TextStyle(color: log['anti_theft'] ? Colors.green : Colors.red))),
+                DataCell(
+                  IconButton(
+                    icon: Icon(Icons.remove_red_eye, color: Colors.blueAccent),
+                    onPressed: () {
+                      // Implement view location functionality
+                    },
+                  ),
+                ),
+              ]);
+            }).toList(),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 
 
 
@@ -572,6 +753,7 @@ class FullMapView extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text("Full Map View"),
+        backgroundColor: Colors.purple[200],
         leading: IconButton(
           icon: const Icon(Icons.close),
           onPressed: () => Navigator.pop(context),
@@ -612,39 +794,75 @@ class FullMapView extends StatelessWidget {
 
 
 class SettingsPage extends StatefulWidget {
-  final String vehicleID;
-
-  const SettingsPage({required this.vehicleID});
-
   @override
   _SettingsPageState createState() => _SettingsPageState();
 }
 
 class _SettingsPageState extends State<SettingsPage> {
+  final TextEditingController _pinController = TextEditingController();
+  final TextEditingController _deviceIdController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _vehicleIdController = TextEditingController();
   final TextEditingController _vehicleNumberController = TextEditingController();
   bool _isLoading = false;
-  XFile? _imageFile; // Store the selected image
 
   @override
   void initState() {
     super.initState();
     _fetchVehicleNumber();
-    _vehicleIdController.text = widget.vehicleID;
+    _fetchDeviceID();
   }
-  Future<void> _pickImage() async {
-    final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+  Future<void> _fetchDeviceID() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? token = prefs.getString('token');
+    if (token == null) return;
 
-    if (pickedFile != null) {
-      setState(() {
-        _imageFile = pickedFile;
-      });
+    setState(() => _isLoading = true);
 
-      // Save the selected image path in SharedPreferences
-      SharedPreferences prefs = await SharedPreferences.getInstance();
-      await prefs.setString('car_image', pickedFile.path);
+    try {
+      final response = await http.get(
+        Uri.parse('http://10.0.2.2:5000/get_device_id'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        _deviceIdController.text = data['device_id'] ?? '';
+      }
+    } catch (e) {
+      print('Error fetching device ID: $e');
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _saveDeviceID() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? token = prefs.getString('token');
+    if (token == null) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      final response = await http.post(
+        Uri.parse('http://10.0.2.2:5000/update_device_id'),
+        headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
+        body: json.encode({'device_id': _deviceIdController.text}),
+      );
+
+      if (response.statusCode == 200) {
+        await prefs.setString('device_id', _deviceIdController.text);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('✅ Device ID updated')),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('❌ Update failed')),
+        );
+      }
+    } catch (e) {
+      print('Error updating Device ID: $e');
+    } finally {
+      setState(() => _isLoading = false);
     }
   }
 
@@ -667,6 +885,44 @@ class _SettingsPageState extends State<SettingsPage> {
       }
     } catch (e) {
       print('Error fetching vehicle number: $e');
+    } finally {
+      setState(() => _isLoading = false);
+    }
+
+  }
+  Future<void> _updatePin() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? token = prefs.getString('token');
+    if (token == null) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      final response = await http.post(
+        Uri.parse('http://10.0.2.2:5000/update_pin'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: json.encode({
+          'device_id': _deviceIdController.text,
+          'pin': _pinController.text,
+          'email': _emailController.text,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('✅ Pin updated successfully')),
+        );
+        Navigator.pop(context); // Go back to the previous screen
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('❌ Update failed')),
+        );
+      }
+    } catch (e) {
+      print('Error: $e');
     } finally {
       setState(() => _isLoading = false);
     }
@@ -720,25 +976,15 @@ class _SettingsPageState extends State<SettingsPage> {
         padding: EdgeInsets.all(16),
         child: Column(
           children: [
-            GestureDetector(
-              onTap: _pickImage, // Call the image picker when the image is tapped
-              child: CircleAvatar(
-                radius: 50,
-                backgroundColor: Colors.grey[300],
-                backgroundImage: _imageFile != null
-                    ? FileImage(File(_imageFile!.path)) // Display the selected image
-                    : AssetImage('assets/car.png') as ImageProvider, // Default image
-              ),
+            TextField(
+              controller: _deviceIdController,
+              decoration: InputDecoration(labelText: "Device ID"),
             ),
             TextField(
               controller: _emailController,
               decoration: InputDecoration(labelText: "Email"),
             ),
-            TextField(
-              controller: _vehicleIdController,
-              decoration: InputDecoration(labelText: "Vehicle ID"),
-              readOnly: true,
-            ),
+
             TextField(
               controller: _vehicleNumberController,
               decoration: InputDecoration(labelText: "Vehicle Number"),
@@ -749,6 +995,18 @@ class _SettingsPageState extends State<SettingsPage> {
                 : ElevatedButton(
               onPressed: _saveChanges,
               child: Text("Save Changes"),
+            ),
+            TextField(
+              controller: _pinController,
+              decoration: InputDecoration(labelText: "New Device Pin"),
+              obscureText: true,
+            ),
+            SizedBox(height: 20),
+            _isLoading
+                ? CircularProgressIndicator()
+                : ElevatedButton(
+              onPressed: _updatePin,
+              child: Text("Update Pin"),
             ),
             ElevatedButton(
               onPressed: () async {
@@ -769,19 +1027,3 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 }
 
-class RoutesLogPage extends StatelessWidget {
-  final String vehicleID;
-
-  const RoutesLogPage({required this.vehicleID});
-
-  @override
-  Widget build(BuildContext context) {
-    // Fetch routes dynamically from server
-    return Scaffold(
-      appBar: AppBar(title: const Text("Routes Log")),
-      body: const Center(
-        child: Text("Previous Routes will be displayed here"),
-      ),
-    );
-  }
-}

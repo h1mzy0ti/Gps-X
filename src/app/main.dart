@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -6,7 +5,6 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:image_picker/image_picker.dart';
 
 void main() => runApp(MyApp());
 
@@ -277,11 +275,10 @@ class GPSHomePage extends StatefulWidget {
 class _GPSHomePageState extends State<GPSHomePage> {
   bool antiTheftMode = false;
   String vehicleNumber = "Loading..."; // Initial state
-  String vehicleID = "1234";
+  String deviceID = "Loading...";
   double batteryLevel = 0; // Default to 0
   String engineStatus = "Fetching..."; // Default to fetching
   LatLng _currentPosition = LatLng(37.4219999, -122.0840575); // Default position
-  XFile? _imageFile;
 
   late Timer _timer;
 
@@ -289,22 +286,19 @@ class _GPSHomePageState extends State<GPSHomePage> {
   void initState() {
     super.initState();
     _loadVehicleNumber(); // Fetch vehicle number on startup
-    _loadCarImage();
+    _loadDeviceID();
     fetchAntiTheftStatus();
     _timer = Timer.periodic(Duration(seconds: 5), (timer) {
       fetchDataFromServer();
-
     });
   }
-  Future<void> _loadCarImage() async {
+  Future<void> _loadDeviceID() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
-    String? carImagePath = prefs.getString('car_image');
-    if (carImagePath != null) {
-      setState(() {
-        _imageFile = XFile(carImagePath);
-      });
-    }
+    setState(() {
+      deviceID = prefs.getString('device_id') ?? "Unknown Device";
+    });
   }
+
 
   Future<void> _loadVehicleNumber() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
@@ -360,6 +354,7 @@ class _GPSHomePageState extends State<GPSHomePage> {
           double lat = data['latitude'] ?? _currentPosition.latitude;
           double lng = data['longitude'] ?? _currentPosition.longitude;
           _currentPosition = LatLng(lat, lng);
+          deviceID = data['device_id'] ?? deviceID;
 
           // Update vehicleNumber if it exists
           if (data.containsKey('vehicle_number')) {
@@ -433,11 +428,11 @@ class _GPSHomePageState extends State<GPSHomePage> {
               onPressed: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => SettingsPage(vehicleID: vehicleID)),
+                  MaterialPageRoute(builder: (context) => SettingsPage()),
                 ).then((value) {
                   if (value != null && value is String) {
                     setState(() {
-                      vehicleNumber = value; // Update vehicle number instantly
+                      deviceID = value; // Update device ID instantly
                     });
                   }
                 });
@@ -458,13 +453,7 @@ class _GPSHomePageState extends State<GPSHomePage> {
           Column(
             children: [
               const Text("Made with ❤️ by Himjyoti", style: TextStyle(fontSize: 16)),
-              _imageFile != null
-                  ? Image.file(
-                File(_imageFile!.path),
-                height: 150,
-                width: 150,
-              )
-                  : Image.asset('assets/car.png', height: 150),  // Fallback if _imageFile is null
+              Image.asset('assets/car.png', height: 150),
               Text(vehicleNumber, style: const TextStyle(fontSize: 17)),
             ],
           ),
@@ -548,7 +537,7 @@ class _GPSHomePageState extends State<GPSHomePage> {
                   onPressed: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (context) => RoutesLogPage(vehicleID: vehicleID)),
+                      MaterialPageRoute(builder: (context) => RoutesLogPage(deviceID: deviceID)),
                     );
                   },
                   child: const Text("Routes Log"),
@@ -612,39 +601,75 @@ class FullMapView extends StatelessWidget {
 
 
 class SettingsPage extends StatefulWidget {
-  final String vehicleID;
-
-  const SettingsPage({required this.vehicleID});
-
   @override
   _SettingsPageState createState() => _SettingsPageState();
 }
 
 class _SettingsPageState extends State<SettingsPage> {
+  final TextEditingController _pinController = TextEditingController();
+  final TextEditingController _deviceIdController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _vehicleIdController = TextEditingController();
   final TextEditingController _vehicleNumberController = TextEditingController();
   bool _isLoading = false;
-  XFile? _imageFile; // Store the selected image
 
   @override
   void initState() {
     super.initState();
     _fetchVehicleNumber();
-    _vehicleIdController.text = widget.vehicleID;
+    _fetchDeviceID();
   }
-  Future<void> _pickImage() async {
-    final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+  Future<void> _fetchDeviceID() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? token = prefs.getString('token');
+    if (token == null) return;
 
-    if (pickedFile != null) {
-      setState(() {
-        _imageFile = pickedFile;
-      });
+    setState(() => _isLoading = true);
 
-      // Save the selected image path in SharedPreferences
-      SharedPreferences prefs = await SharedPreferences.getInstance();
-      await prefs.setString('car_image', pickedFile.path);
+    try {
+      final response = await http.get(
+        Uri.parse('http://10.0.2.2:5000/get_device_id'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        _deviceIdController.text = data['device_id'] ?? '';
+      }
+    } catch (e) {
+      print('Error fetching device ID: $e');
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _saveDeviceID() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? token = prefs.getString('token');
+    if (token == null) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      final response = await http.post(
+        Uri.parse('http://10.0.2.2:5000/update_device_id'),
+        headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer $token'},
+        body: json.encode({'device_id': _deviceIdController.text}),
+      );
+
+      if (response.statusCode == 200) {
+        await prefs.setString('device_id', _deviceIdController.text);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('✅ Device ID updated')),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('❌ Update failed')),
+        );
+      }
+    } catch (e) {
+      print('Error updating Device ID: $e');
+    } finally {
+      setState(() => _isLoading = false);
     }
   }
 
@@ -667,6 +692,44 @@ class _SettingsPageState extends State<SettingsPage> {
       }
     } catch (e) {
       print('Error fetching vehicle number: $e');
+    } finally {
+      setState(() => _isLoading = false);
+    }
+
+  }
+  Future<void> _updatePin() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? token = prefs.getString('token');
+    if (token == null) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      final response = await http.post(
+        Uri.parse('http://10.0.2.2:5000/update_pin'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: json.encode({
+          'device_id': _deviceIdController.text,
+          'pin': _pinController.text,
+          'email': _emailController.text,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('✅ Pin updated successfully')),
+        );
+        Navigator.pop(context); // Go back to the previous screen
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('❌ Update failed')),
+        );
+      }
+    } catch (e) {
+      print('Error: $e');
     } finally {
       setState(() => _isLoading = false);
     }
@@ -720,25 +783,15 @@ class _SettingsPageState extends State<SettingsPage> {
         padding: EdgeInsets.all(16),
         child: Column(
           children: [
-            GestureDetector(
-              onTap: _pickImage, // Call the image picker when the image is tapped
-              child: CircleAvatar(
-                radius: 50,
-                backgroundColor: Colors.grey[300],
-                backgroundImage: _imageFile != null
-                    ? FileImage(File(_imageFile!.path)) // Display the selected image
-                    : AssetImage('assets/car.png') as ImageProvider, // Default image
-              ),
+            TextField(
+              controller: _deviceIdController,
+              decoration: InputDecoration(labelText: "Device ID"),
             ),
             TextField(
               controller: _emailController,
               decoration: InputDecoration(labelText: "Email"),
             ),
-            TextField(
-              controller: _vehicleIdController,
-              decoration: InputDecoration(labelText: "Vehicle ID"),
-              readOnly: true,
-            ),
+
             TextField(
               controller: _vehicleNumberController,
               decoration: InputDecoration(labelText: "Vehicle Number"),
@@ -749,6 +802,18 @@ class _SettingsPageState extends State<SettingsPage> {
                 : ElevatedButton(
               onPressed: _saveChanges,
               child: Text("Save Changes"),
+            ),
+            TextField(
+              controller: _pinController,
+              decoration: InputDecoration(labelText: "New Device Pin"),
+              obscureText: true,
+            ),
+            SizedBox(height: 20),
+            _isLoading
+                ? CircularProgressIndicator()
+                : ElevatedButton(
+              onPressed: _updatePin,
+              child: Text("Update Pin"),
             ),
             ElevatedButton(
               onPressed: () async {
@@ -770,9 +835,9 @@ class _SettingsPageState extends State<SettingsPage> {
 }
 
 class RoutesLogPage extends StatelessWidget {
-  final String vehicleID;
+  final String deviceID;
 
-  const RoutesLogPage({required this.vehicleID});
+  const RoutesLogPage({required this.deviceID});
 
   @override
   Widget build(BuildContext context) {

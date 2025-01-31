@@ -17,6 +17,7 @@ Wi-Fi to connect to the internet serving as a test code
 // Hardware Serial Ports
 #define RX_PIN 4  // GPS RX
 #define TX_PIN 5  // GPS TX
+const String DEVICE_ID = "STATIC_DEVICE_ID"; // Replace with your desired static device ID
 
 // Global Objects
 TinyGPSPlus gps;

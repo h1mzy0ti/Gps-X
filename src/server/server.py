@@ -176,6 +176,41 @@ def get_anti_theft():
         return jsonify({'anti_theft': False}), 200
     
     return jsonify({'anti_theft': user_data['anti_theft']}), 200
+# Update Vehicle Number
+@app.route('/update_vehicle_number', methods=['POST'])
+@jwt_required()
+def update_vehicle_number():
+    """Update the vehicle number for the user."""
+    user_email = get_jwt_identity()
+    data = request.get_json()
+    vehicle_number = data.get('vehicle_number')
+    
+    if not vehicle_number:
+        return jsonify({'error': 'Vehicle number is required'}), 400
+    
+    result = users_collection.update_one(
+        {'email': user_email},
+        {'$set': {'vehicle_number': vehicle_number}},
+        upsert=True
+    )
+    
+    if result.modified_count > 0 or result.upserted_id:
+        return jsonify({'message': 'Vehicle number updated successfully'}), 200
+    else:
+        return jsonify({'message': 'No changes made'}), 304
+
+# Fetch Vehicle Number
+@app.route('/get_vehicle_number', methods=['GET'])
+@jwt_required()
+def get_vehicle_number():
+    """Get the stored vehicle number."""
+    user_email = get_jwt_identity()
+    user_data = users_collection.find_one({'email': user_email}, {'_id': 0, 'vehicle_number': 1})
+    
+    if not user_data or 'vehicle_number' not in user_data:
+        return jsonify({'vehicle_number': None}), 200
+    
+    return jsonify({'vehicle_number': user_data['vehicle_number']}), 200
 
 
 if __name__ == '__main__':

@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -5,6 +6,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:image_picker/image_picker.dart';
 
 void main() => runApp(MyApp());
 
@@ -274,28 +276,74 @@ class GPSHomePage extends StatefulWidget {
 
 class _GPSHomePageState extends State<GPSHomePage> {
   bool antiTheftMode = false;
-  String vehicleNumber = "AS01X XXX23";
+  String vehicleNumber = "Loading..."; // Initial state
   String vehicleID = "1234";
   double batteryLevel = 0; // Default to 0
   String engineStatus = "Fetching..."; // Default to fetching
   LatLng _currentPosition = LatLng(37.4219999, -122.0840575); // Default position
+  XFile? _imageFile;
 
   late Timer _timer;
 
   @override
   void initState() {
     super.initState();
-    fetchAntiTheftStatus(); // Fetch the initial Anti-Theft Mode status from the server
+    _loadVehicleNumber(); // Fetch vehicle number on startup
+    _loadCarImage();
+    fetchAntiTheftStatus();
     _timer = Timer.periodic(Duration(seconds: 5), (timer) {
       fetchDataFromServer();
+
     });
   }
+  Future<void> _loadCarImage() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? carImagePath = prefs.getString('car_image');
+    if (carImagePath != null) {
+      setState(() {
+        _imageFile = XFile(carImagePath);
+      });
+    }
+  }
+
+  Future<void> _loadVehicleNumber() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    setState(() {
+      vehicleNumber = prefs.getString('vehicle_number') ?? "Loading...";
+    });
+  }
+
 
   @override
   void dispose() {
     _timer.cancel();
     super.dispose();
   }
+
+  Future<void> fetchVehicleNumber() async {
+    try {
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      String? token = prefs.getString('token');
+      if (token == null) return;
+
+      final response = await http.get(
+        Uri.parse('http://10.0.2.2:5000/get_vehicle_number'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        setState(() {
+          vehicleNumber = data['vehicle_number'] ?? "Unknown";
+        });
+      } else {
+        print("Failed to fetch vehicle number");
+      }
+    } catch (e) {
+      print("Error fetching vehicle number: $e");
+    }
+  }
+
 
   Future<void> fetchDataFromServer() async {
     try {
@@ -312,6 +360,11 @@ class _GPSHomePageState extends State<GPSHomePage> {
           double lat = data['latitude'] ?? _currentPosition.latitude;
           double lng = data['longitude'] ?? _currentPosition.longitude;
           _currentPosition = LatLng(lat, lng);
+
+          // Update vehicleNumber if it exists
+          if (data.containsKey('vehicle_number')) {
+            vehicleNumber = data['vehicle_number'];
+          }
         });
       } else {
         setState(() {
@@ -325,6 +378,7 @@ class _GPSHomePageState extends State<GPSHomePage> {
       print("Error fetching data: $e");
     }
   }
+
 
   Future<void> fetchAntiTheftStatus() async {
     try {
@@ -380,7 +434,13 @@ class _GPSHomePageState extends State<GPSHomePage> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (context) => SettingsPage(vehicleID: vehicleID)),
-                );
+                ).then((value) {
+                  if (value != null && value is String) {
+                    setState(() {
+                      vehicleNumber = value; // Update vehicle number instantly
+                    });
+                  }
+                });
               },
             ),
             SizedBox(width: 50), // Optional: Add space between the icon and logo
@@ -398,7 +458,13 @@ class _GPSHomePageState extends State<GPSHomePage> {
           Column(
             children: [
               const Text("Made with ❤️ by Himjyoti", style: TextStyle(fontSize: 16)),
-              Image.asset('assets/car.png', height: 150),
+              _imageFile != null
+                  ? Image.file(
+                File(_imageFile!.path),
+                height: 150,
+                width: 150,
+              )
+                  : Image.asset('assets/car.png', height: 150),  // Fallback if _imageFile is null
               Text(vehicleNumber, style: const TextStyle(fontSize: 17)),
             ],
           ),
@@ -439,7 +505,7 @@ class _GPSHomePageState extends State<GPSHomePage> {
                 child: FlutterMap(
                   options: MapOptions(
                     center: _currentPosition,
-                    zoom: 14.0,
+                    zoom: 18.0,
                     minZoom: 5.0,
                     maxZoom: 18.0,
                     interactiveFlags: InteractiveFlag.pinchZoom | InteractiveFlag.drag,
@@ -449,6 +515,16 @@ class _GPSHomePageState extends State<GPSHomePage> {
                       urlTemplate: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
                       subdomains: ['a', 'b', 'c'],
                       userAgentPackageName: 'com.example.app',
+                    ),
+                    MarkerLayer(
+                      markers: [
+                        Marker(
+                          width: 35.0,
+                          height: 35.0,
+                          point: _currentPosition, // Updated position
+                          builder: (ctx) => Image.asset('assets/pin.png'), // Car Icon
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -489,6 +565,8 @@ class _GPSHomePageState extends State<GPSHomePage> {
 
 
 class FullMapView extends StatelessWidget {
+  final LatLng _currentPosition = LatLng(37.4219999, -122.0840575); // Example position
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -503,7 +581,7 @@ class FullMapView extends StatelessWidget {
         borderRadius: BorderRadius.circular(20), // Curved corners for map
         child: FlutterMap(
           options: MapOptions(
-            center: LatLng(37.4219999, -122.0840575), // Example position
+            center: _currentPosition, // Example position
             zoom: 14.0,
             minZoom: 5.0,
             maxZoom: 18.0,
@@ -515,6 +593,16 @@ class FullMapView extends StatelessWidget {
               subdomains: ['a', 'b', 'c'],
               userAgentPackageName: 'com.example.app',
             ),
+            MarkerLayer(
+              markers: [
+                Marker(
+                  width: 35.0,
+                  height: 35.0,
+                  point: _currentPosition, // Updated position
+                  builder: (ctx) => Image.asset('assets/pin.png'), // Car Icon
+                ),
+              ],
+            ),
           ],
         ),
       ),
@@ -522,47 +610,157 @@ class FullMapView extends StatelessWidget {
   }
 }
 
-class SettingsPage extends StatelessWidget {
+
+class SettingsPage extends StatefulWidget {
   final String vehicleID;
 
   const SettingsPage({required this.vehicleID});
 
   @override
+  _SettingsPageState createState() => _SettingsPageState();
+}
+
+class _SettingsPageState extends State<SettingsPage> {
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _vehicleIdController = TextEditingController();
+  final TextEditingController _vehicleNumberController = TextEditingController();
+  bool _isLoading = false;
+  XFile? _imageFile; // Store the selected image
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchVehicleNumber();
+    _vehicleIdController.text = widget.vehicleID;
+  }
+  Future<void> _pickImage() async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+
+    if (pickedFile != null) {
+      setState(() {
+        _imageFile = pickedFile;
+      });
+
+      // Save the selected image path in SharedPreferences
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      await prefs.setString('car_image', pickedFile.path);
+    }
+  }
+
+  Future<void> _fetchVehicleNumber() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? token = prefs.getString('token');
+    if (token == null) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      final response = await http.get(
+        Uri.parse('http://10.0.2.2:5000/get_vehicle_number'),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        _vehicleNumberController.text = data['vehicle_number'] ?? '';
+      }
+    } catch (e) {
+      print('Error fetching vehicle number: $e');
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+
+  Future<void> _saveChanges() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? token = prefs.getString('token');
+    if (token == null) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      final response = await http.post(
+        Uri.parse('http://10.0.2.2:5000/update_vehicle_number'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: json.encode({'vehicle_number': _vehicleNumberController.text}),
+      );
+
+      if (response.statusCode == 200) {
+        // ✅ Save the updated vehicle number to SharedPreferences
+        await prefs.setString('vehicle_number', _vehicleNumberController.text);
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('✅ Vehicle number updated')),
+        );
+
+        Navigator.pop(context, _vehicleNumberController.text); // Pass updated value to previous screen
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('❌ Update failed')),
+        );
+      }
+    } catch (e) {
+      print('Error: $e');
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Settings")),
+      appBar: AppBar(title: Text("Settings")),
       body: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: EdgeInsets.all(16),
         child: Column(
           children: [
-            const TextField(
-              decoration: InputDecoration(labelText: "Email ID"),
+            GestureDetector(
+              onTap: _pickImage, // Call the image picker when the image is tapped
+              child: CircleAvatar(
+                radius: 50,
+                backgroundColor: Colors.grey[300],
+                backgroundImage: _imageFile != null
+                    ? FileImage(File(_imageFile!.path)) // Display the selected image
+                    : AssetImage('assets/car.png') as ImageProvider, // Default image
+              ),
             ),
             TextField(
-              decoration: const InputDecoration(labelText: "Vehicle ID"),
-              controller: TextEditingController(text: vehicleID),
+              controller: _emailController,
+              decoration: InputDecoration(labelText: "Email"),
             ),
-            const TextField(
+            TextField(
+              controller: _vehicleIdController,
+              decoration: InputDecoration(labelText: "Vehicle ID"),
+              readOnly: true,
+            ),
+            TextField(
+              controller: _vehicleNumberController,
               decoration: InputDecoration(labelText: "Vehicle Number"),
             ),
-            ElevatedButton(
-              onPressed: () {
-                // Save changes
-                print("Updating settings...");
-              },
-              child: const Text("Save Changes"),
+            SizedBox(height: 20),
+            _isLoading
+                ? CircularProgressIndicator()
+                : ElevatedButton(
+              onPressed: _saveChanges,
+              child: Text("Save Changes"),
             ),
             ElevatedButton(
               onPressed: () async {
                 SharedPreferences prefs = await SharedPreferences.getInstance();
-                await prefs.remove('token'); // Clear the stored token
+                await prefs.remove('token');
                 Navigator.pushAndRemoveUntil(
                   context,
                   MaterialPageRoute(builder: (context) => LoginPage()),
                       (route) => false,
-                ); // Redirect to LoginPage and clear history
+                );
               },
-              child: const Text('Logout'),
+              child: Text('Logout'),
             ),
           ],
         ),

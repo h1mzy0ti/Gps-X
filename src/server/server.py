@@ -14,6 +14,7 @@ app.config['JWT_SECRET_KEY'] = secrets.token_hex(32)  # Secure key
 jwt = JWTManager(app)
 bcrypt = Bcrypt(app)
 CORS(app)
+DEFAULT_PIN = "1234"  # Set your desired default pin here
 
 # MongoDB setup
 client = MongoClient("mongodb://localhost:27017/")
@@ -176,7 +177,57 @@ def get_anti_theft():
         return jsonify({'anti_theft': False}), 200
     
     return jsonify({'anti_theft': user_data['anti_theft']}), 200
+
+@app.route('/update_device_id', methods=['POST'])
+@jwt_required()
+def update_device_id():
+    """Update the device ID for the user."""
+    user_email = get_jwt_identity()
+    data = request.get_json()
+    device_id = data.get('device_id')
+
+    if not device_id:
+        return jsonify({'error': 'Device ID is required'}), 400
+
+    result = users_collection.update_one(
+        {'email': user_email},
+        {'$set': {'device_id': device_id}},
+        upsert=True
+    )
+
+    if result.modified_count > 0 or result.upserted_id:
+        return jsonify({'message': 'Device ID updated successfully'}), 200
+    else:
+        return jsonify({'message': 'No changes made'}), 304
 # Update Vehicle Number
+@app.route('/update_pin', methods=['POST'])
+@jwt_required()
+def update_pin():
+    """Update the device pin for the user."""
+    user_email = get_jwt_identity()
+    data = request.get_json()
+    device_id = data.get('device_id')
+    new_pin = data.get('pin')
+
+    if not device_id or not new_pin:
+        return jsonify({'error': 'Device ID and pin are required'}), 400
+
+    # Verify that the device ID corresponds to the user's email
+    user = users_collection.find_one({'email': user_email})
+    if not user or user.get('device_id') != device_id:
+        return jsonify({'error': 'Invalid device ID for this user'}), 403
+
+    # Update the user's pin in the database
+    result = users_collection.update_one(
+        {'email': user_email},
+        {'$set': {'pin': new_pin}},
+        upsert=True
+    )
+
+    if result.modified_count > 0 or result.upserted_id:
+        return jsonify({'message': 'Pin updated successfully'}), 200
+    else:
+        return jsonify({'message': 'No changes made'}), 304
 @app.route('/update_vehicle_number', methods=['POST'])
 @jwt_required()
 def update_vehicle_number():
@@ -198,7 +249,6 @@ def update_vehicle_number():
         return jsonify({'message': 'Vehicle number updated successfully'}), 200
     else:
         return jsonify({'message': 'No changes made'}), 304
-
 # Fetch Vehicle Number
 @app.route('/get_vehicle_number', methods=['GET'])
 @jwt_required()
@@ -211,6 +261,19 @@ def get_vehicle_number():
         return jsonify({'vehicle_number': None}), 200
     
     return jsonify({'vehicle_number': user_data['vehicle_number']}), 200
+
+# Fetch device id
+@app.route('/get_device_id', methods=['GET'])
+@jwt_required()
+def get_device_id():
+    """Get the stored device ID."""
+    user_email = get_jwt_identity()
+    user_data = users_collection.find_one({'email': user_email}, {'_id': 0, 'device_id': 1})
+
+    if not user_data or 'device_id' not in user_data:
+        return jsonify({'device_id': None}), 200
+
+    return jsonify({'device_id': user_data['device_id']}), 200
 
 
 if __name__ == '__main__':

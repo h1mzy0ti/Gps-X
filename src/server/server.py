@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify
+from flask_jwt_extended import jwt_required
 from flask_jwt_extended import (
     JWTManager, create_access_token, jwt_required, get_jwt_identity
 )
@@ -92,7 +93,17 @@ def logs():
     """Fetch the GPS logs for the logged-in user."""
     user_email = get_jwt_identity()
     user_logs = data_collection.find({'email': user_email})
-    logs = [{'latitude': log['latitude'], 'longitude': log['longitude'], 'timestamp': log['timestamp']} for log in user_logs]
+    
+    logs = []
+    for log in user_logs:
+        logs.append({
+            'latitude': log['latitude'],
+            'longitude': log['longitude'],
+            'timestamp': log['timestamp'],
+            'engine_status': log.get('engine_status', 'Unknown'),  # Add engine status
+            'anti_theft': log.get('anti_theft', False)  # Add anti-theft mode
+        })
+    
     return jsonify({'logs': logs}), 200
 
 # Add Data Route for GPS logs
@@ -274,7 +285,28 @@ def get_device_id():
         return jsonify({'device_id': None}), 200
 
     return jsonify({'device_id': user_data['device_id']}), 200
+@app.route('/add_location', methods=['POST'])
+@jwt_required()
+def add_location():
+    """Add a geo-fenced location for the user."""
+    user_email = get_jwt_identity()
+    data = request.get_json()
+    name = data.get('name')
+    latitude = data.get('latitude')
+    longitude = data.get('longitude')
 
+    if not name or latitude is None or longitude is None:
+        return jsonify({'error': 'Missing fields in request'}), 400
+
+    # Store the location in the database
+    db.locations.insert_one({
+        'email': user_email,
+        'name': name,
+        'latitude': latitude,
+        'longitude': longitude,
+        'timestamp': datetime.utcnow()
+    })
+    return jsonify({'message': 'Location added successfully'}), 201
 
 if __name__ == '__main__':
     app.run(debug=True)

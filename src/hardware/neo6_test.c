@@ -31,7 +31,7 @@ void loop() {
   
   // If no GPS signal, print a message
   if (!gps.location.isUpdated()) {
-    Serial.println("Detecting signal.");
+    Serial.println("\nDetecting signal.");
   }
 
   delay(1000); // Wait for 1 second before the next iteration
